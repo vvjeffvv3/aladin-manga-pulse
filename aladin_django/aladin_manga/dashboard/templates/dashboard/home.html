@@ -1,0 +1,181 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}메인 대시보드{% endblock %}
+{% block page_kicker %}DAILY MARKET PULSE{% endblock %}
+
+{% block content %}
+{% if latest_snapshot %}
+<section class="page-heading page-heading--dashboard">
+    <div>
+        <p class="eyebrow">DAILY MARKET PULSE <span></span> {{ latest_snapshot|date:"Y.m.d" }}</p>
+        <h1>오늘, 어떤 만화가<br><em>시선을 끌었을까요?</em></h1>
+        <p class="heading-description">알라딘 만화 베스트셀러의 현재 흐름과 전일 대비 순위 변화를<br class="desktop-only"> 한 화면에서 확인하세요.</p>
+    </div>
+    <div class="sync-card">
+        <span class="sync-label">LAST SYNC</span>
+        <strong>{{ latest_snapshot|date:"Y-m-d" }}</strong>
+        <span>{{ latest_snapshot|date:"H:i" }} 기준 수집 완료</span>
+        {% if previous_snapshot %}
+        <small>전일 데이터와 비교 중</small>
+        {% endif %}
+    </div>
+</section>
+
+<section class="hero-card" aria-label="데이터 수집 안내">
+    <div class="hero-content">
+        <span class="hero-eyebrow"><i></i> TODAY'S SIGNAL</span>
+        <h2>순위는 숫자지만,<br><strong>움직임에는 이야기가 있습니다.</strong></h2>
+        <p>상승·하락·신규 진입 데이터를 바탕으로<br>오늘의 만화 시장을 읽어보세요.</p>
+    </div>
+    <div class="hero-visual" aria-hidden="true">
+        <span class="visual-ring visual-ring--one"></span>
+        <span class="visual-ring visual-ring--two"></span>
+        <span class="visual-core">↗</span>
+        <span class="visual-label visual-label--top">RANK</span>
+        <span class="visual-label visual-label--bottom">TREND</span>
+    </div>
+</section>
+
+<section class="metrics-grid" aria-label="주요 지표">
+    <article class="metric-card metric-card--violet">
+        <div class="metric-head">
+            <span class="metric-label">TODAY'S TOP 50</span>
+            <span class="metric-icon">↗</span>
+        </div>
+        <strong class="metric-value">{{ books|length }}</strong>
+        <span class="metric-foot">인기 도서 트래킹</span>
+    </article>
+    <article class="metric-card metric-card--mint">
+        <div class="metric-head">
+            <span class="metric-label">SERIES LEADERBOARD</span>
+            <span class="metric-icon">✦</span>
+        </div>
+        <strong class="metric-value">{{ series|length }}</strong>
+        <span class="metric-foot">오늘의 인기 시리즈</span>
+    </article>
+    <article class="metric-card metric-card--coral">
+        <div class="metric-head">
+            <span class="metric-label">COMPARISON MODE</span>
+            <span class="metric-icon">◷</span>
+        </div>
+        <strong class="metric-value">{% if previous_snapshot %}ON{% else %}—{% endif %}</strong>
+        <span class="metric-foot">전일 순위 비교</span>
+    </article>
+</section>
+
+<div class="dashboard-grid">
+    <section class="panel ranking-panel">
+        <div class="panel-heading">
+            <div>
+                <p class="section-kicker">RANKING BOARD</p>
+                <h2>오늘의 인기 만화</h2>
+            </div>
+            <a class="outline-button" href="{% url 'dashboard:search' %}">전체 탐색 <span>→</span></a>
+        </div>
+
+        <div class="table-wrap">
+            <table class="data-table ranking-table">
+                <thead>
+                    <tr>
+                        <th class="col-rank">RANK</th>
+                        <th class="col-change">TREND</th>
+                        <th>TITLE</th>
+                        <th class="col-actions">SAVE</th>
+                        <th>CREATOR</th>
+                        <th class="align-right">RATING</th>
+                        <th class="align-right">RELEASE DATE</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for snapshot in books %}
+                    <tr>
+                        <td data-label="순위">
+                            <span class="rank-badge {% if snapshot.rank_no == 1 %}rank-badge--gold{% elif snapshot.rank_no == 2 %}rank-badge--silver{% elif snapshot.rank_no == 3 %}rank-badge--bronze{% endif %}">{{ snapshot.rank_no|stringformat:"02d" }}</span>
+                        </td>
+                        <td data-label="변화">
+                            {% if snapshot.rank_status == "new" %}
+                                <span class="trend-badge trend-new">NEW</span>
+                            {% elif snapshot.rank_status == "up" %}
+                                <span class="trend-badge trend-up"><b>↑</b> {{ snapshot.rank_change }}</span>
+                            {% elif snapshot.rank_status == "down" %}
+                                <span class="trend-badge trend-down"><b>↓</b> {{ snapshot.rank_change|stringformat:"d"|slice:"1:" }}</span>
+                            {% elif snapshot.rank_status == "baseline" %}
+                                <span class="trend-badge trend-neutral">BASE</span>
+                            {% else %}
+                                <span class="trend-badge trend-neutral">—</span>
+                            {% endif %}
+                        </td>
+                        <td data-label="제목">
+                            <div class="title-cell">
+                                <strong>{{ snapshot.book.title }}</strong>
+                                {% if snapshot.book.edition_type %}<span>{{ snapshot.book.edition_type }}</span>{% endif %}
+                            </div>
+                        </td>
+                        <td data-label="목록">
+                            <div class="collection-actions">
+                                <form method="post" action="{% url 'dashboard:add_book_to_owned' snapshot.book.item_id %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                    <button class="collection-button collection-button--owned {% if snapshot.is_owned %}is-active{% endif %}" type="submit" title="보유 목록에 추가" aria-label="{{ snapshot.book.title }} 보유 목록에 추가">{% if snapshot.is_owned %}★{% else %}☆{% endif %}</button>
+                                </form>
+                                <form method="post" action="{% url 'dashboard:add_book_to_interest' snapshot.book.item_id %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                    <button class="collection-button collection-button--interest {% if snapshot.is_interested %}is-active{% endif %}" type="submit" title="관심 항목에 추가" aria-label="{{ snapshot.book.title }} 관심 항목에 추가">{% if snapshot.is_interested %}♥{% else %}♡{% endif %}</button>
+                                </form>
+                            </div>
+                        </td>
+                        <td data-label="저자">
+                            <div class="creator-cell creator-cell--plain">
+                                <div><strong>{{ snapshot.book.author|default:"미상" }}</strong><span>{{ snapshot.book.series.series_name|default:"단독 타이틀" }}</span></div>
+                            </div>
+                        </td>
+                        <td class="align-right" data-label="평점"><span class="rating-value"><i>★</i> {{ snapshot.rating|default:"-" }}</span></td>
+                        <td class="align-right" data-label="발매일">{{ snapshot.release_date_display|default:"-" }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td class="empty-cell" colspan="7">도서 데이터가 없습니다.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <aside class="panel series-panel">
+        <div class="panel-heading panel-heading--compact">
+            <div>
+                <p class="section-kicker">SERIES POWER</p>
+                <h2>인기 시리즈</h2>
+            </div>
+            <span class="panel-dot"></span>
+        </div>
+        <p class="panel-subtitle">오늘 전체 데이터에서 많이 등장한 시리즈 순위</p>
+
+        <div class="series-list">
+            {% for stat in series %}
+                <div class="series-row">
+                    <span class="series-rank">{{ stat.series_rank|stringformat:"02d" }}</span>
+                    <div class="series-info">
+                        <strong>{{ stat.series.series_name }}</strong>
+                        <span>등장 {{ stat.volume_count }}건 · 권수 {{ stat.volume_numbers|default:"미상" }}</span>
+                    </div>
+                    <span class="series-score">{{ stat.volume_count }}건</span>
+            </div>
+            {% empty %}
+            <div class="empty-state">시리즈 데이터가 없습니다.</div>
+            {% endfor %}
+        </div>
+
+        <a class="series-footer-link" href="{% url 'dashboard:search' %}">전체 랭킹에서 더 보기 <span>↗</span></a>
+    </aside>
+</div>
+
+{% else %}
+<section class="empty-dashboard">
+    <span class="empty-dashboard-icon">◌</span>
+    <p class="section-kicker">WAITING FOR DATA</p>
+    <h1>아직 수집된 데이터가 없습니다.</h1>
+    <p>크롤러와 적재 작업을 실행하면 이곳에서 만화 랭킹을 확인할 수 있어요.</p>
+</section>
+{% endif %}
+{% endblock %}

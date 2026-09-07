@@ -1,0 +1,303 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}마이페이지{% endblock %}
+{% block page_kicker %}MY PAGE{% endblock %}
+
+{% block content %}
+{% if messages %}
+<div class="message-stack" aria-live="polite">
+    {% for message in messages %}
+    <div class="message message--{{ message.tags|default:'info' }}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<section class="page-heading page-heading--collection">
+    <div>
+        <p class="eyebrow">MY PAGE <span></span> MY SHELF</p>
+        <h1>내 보유 목록을<br><em>한곳에서 관리하세요.</em></h1>
+        <p class="heading-description">책 목록에서 별을 누른 시리즈가 이곳에 쌓입니다.<br class="desktop-only"> 현재 최신 권수와 내가 보유한 권수를 한눈에 비교해 보세요.</p>
+    </div>
+    <div class="collection-summary">
+        <span>OWNED ITEMS</span>
+        <strong>{{ owned_series|length }}</strong>
+        <small>보유 중인 시리즈</small>
+    </div>
+</section>
+
+<div class="collection-layout">
+    <section class="panel collection-panel">
+        <div class="panel-heading">
+            <div>
+                <p class="section-kicker">MY SHELF</p>
+                <h2>보유 목록</h2>
+            </div>
+            <span class="collection-live"><i></i> OWNED ITEMS</span>
+        </div>
+
+        {% if owned_folder_groups %}
+        <nav class="owned-folder-jump" aria-label="내 보유 폴더 바로가기">
+            <span class="owned-folder-jump-label">JUMP TO FOLDER</span>
+            <div class="owned-folder-jump-list">
+                {% for folder in owned_folder_groups %}
+                <a class="folder-jump-link {% if not folder.folder_id %}folder-jump-link--unclassified{% endif %}" href="#owned-folder-{% if folder.folder_id %}{{ folder.folder_id }}{% else %}unclassified{% endif %}">
+                    <span class="folder-jump-icon">{% if folder.folder_id %}▦{% else %}—{% endif %}</span>
+                    <span class="folder-jump-copy">
+                        <strong>{{ folder.folder_name }}</strong>
+                        <small>{{ folder.series_count }}개 시리즈</small>
+                    </span>
+                    <b>{{ folder.progress_percent }}%</b>
+                </a>
+                {% endfor %}
+            </div>
+        </nav>
+        <div class="owned-folder-list" data-folder-reorder-url="{% url 'dashboard:reorder_owned_folders' %}">
+            {% for folder in owned_folder_groups %}
+            <details id="owned-folder-{% if folder.folder_id %}{{ folder.folder_id }}{% else %}unclassified{% endif %}" class="owned-folder-group {% if not folder.folder_id %}owned-folder-group--unclassified{% endif %}" data-folder-id="{% if folder.folder_id %}{{ folder.folder_id }}{% endif %}" {% if forloop.first %}open{% endif %}>
+                <summary class="owned-folder-head">
+                    <div>
+                        <span class="folder-label">FOLDER</span>
+                        <h3>{{ folder.folder_name }}</h3>
+                        <span class="folder-meta">{{ folder.series_count }}개 시리즈 · {{ folder.owned_volume_count }} / {% if folder.total_volume_no %}{{ folder.total_volume_no }}{% else %}—{% endif %}권</span>
+                    </div>
+                    <div class="folder-progress">
+                        <div class="folder-progress-value">
+                            <span>COLLECTION RATE</span>
+                            <strong>{{ folder.progress_percent }}%</strong>
+                        </div>
+                        <div class="progress-track"><span style="width: {{ folder.progress_percent }}%;"></span></div>
+                    </div>
+                    {% if folder.folder_id %}
+                    <span class="folder-drag-handle" draggable="true" title="드래그해서 폴더 순서 변경" aria-label="드래그해서 폴더 순서 변경">⠿</span>
+                    {% else %}
+                    <span class="folder-drag-handle folder-drag-handle--disabled" aria-hidden="true">·</span>
+                    {% endif %}
+                    <span class="folder-toggle" aria-hidden="true"></span>
+                </summary>
+
+                {% if folder.items %}
+                <div class="owned-volume-list" data-folder-id="{% if folder.folder_id %}{{ folder.folder_id }}{% endif %}" data-series-reorder-url="{% url 'dashboard:reorder_owned_series' %}">
+                    {% for item in folder.items %}
+                    <article class="owned-volume-row" data-owned-series-id="{{ item.owned_series_id }}">
+                        <div class="owned-volume-head series-drag-area" draggable="true" title="드래그해서 시리즈 순서 변경">
+                            <span class="owned-index" aria-hidden="true">{{ forloop.counter|stringformat:"02d" }}</span>
+                            <div class="owned-title-wrap">
+                                <span class="collection-label">SERIES {{ forloop.counter|stringformat:"02d" }}</span>
+                                <h3>{{ item.series.series_name }}</h3>
+                            </div>
+                            {% if item.source_url %}<span class="source-tag">ALADIN</span>{% else %}<span class="source-tag source-tag--local">LOCAL</span>{% endif %}
+                            <span class="series-drag-handle" aria-hidden="true">⠿</span>
+                        </div>
+                        <form class="owned-selection-form" method="post" action="{% url 'dashboard:update_owned_series_volume' item.owned_series_id %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                            <input type="hidden" name="owned_selection" value="1">
+                            <fieldset class="owned-volume-fieldset">
+                                <legend>보유 권수 선택 <small>{% if item.total_volume_no %}총 {{ item.total_volume_no }}권{% else %}권수 확인 필요{% endif %}</small></legend>
+                                {% if item.available_volume_numbers %}
+                                <div class="volume-checkbox-grid">
+                                    {% for volume_no in item.available_volume_numbers %}
+                                    <label class="volume-checkbox" for="owned-volume-{{ item.owned_series_id }}-{{ volume_no }}">
+                                        <input id="owned-volume-{{ item.owned_series_id }}-{{ volume_no }}" type="checkbox" name="owned_volumes" value="{{ volume_no }}" {% if volume_no in item.owned_volume_numbers %}checked{% endif %}>
+                                        <span>{{ volume_no }}</span>
+                                    </label>
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <p class="volume-empty">발매 권수를 확인하지 못해 체크박스를 만들 수 없습니다.</p>
+                                {% endif %}
+                            </fieldset>
+                            <div class="owned-folder-select">
+                                <label for="owned-folder-{{ item.owned_series_id }}">작품 폴더</label>
+                                <select id="owned-folder-{{ item.owned_series_id }}" name="folder_id">
+                                    <option value="" {% if not item.folder_id %}selected{% endif %}>미분류</option>
+                                    {% for folder_option in owned_folders %}
+                                    <option value="{{ folder_option.folder_id }}" {% if folder_option.folder_id == item.folder_id %}selected{% endif %}>{{ folder_option.folder_name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="owned-selection-foot">
+                                <div class="owned-progress-summary">
+                                    <span>수집률</span>
+                                    <strong>{{ item.progress_percent }}%</strong>
+                                    <small>{{ item.owned_volume_count }} / {% if item.total_volume_no %}{{ item.total_volume_no }}{% else %}—{% endif %}권</small>
+                                </div>
+                                <div class="progress-track"><span style="width: {{ item.progress_percent }}%;"></span></div>
+                                <button class="owned-save-button" type="submit">저장</button>
+                            </div>
+                        </form>
+                        <div class="owned-missing-volume">
+                            <span>미보유 권</span>
+                            {% if item.missing_volume_numbers %}
+                            <div class="missing-volume-list">
+                                {% for volume_no in item.missing_volume_numbers %}<b>{{ volume_no }}권</b>{% endfor %}
+                            </div>
+                            {% else %}
+                            <strong class="complete-text">현재 최신까지 모두 보유</strong>
+                            {% endif %}
+                        </div>
+                        <div class="owned-volume-footer">
+                            <span class="checked-time">{% if item.latest_checked_at %}{{ item.latest_checked_at|date:"Y.m.d" }} 확인{% else %}확인 전{% endif %}</span>
+                            <form method="post" action="{% url 'dashboard:refresh_owned_series' item.owned_series_id %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <button class="text-button" type="submit">↻ 최신 갱신</button>
+                            </form>
+                            <form method="post" action="{% url 'dashboard:remove_owned_series' item.owned_series_id %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <button class="text-button text-button--danger" type="submit">삭제</button>
+                            </form>
+                        </div>
+                    </article>
+                    {% endfor %}
+                </div>
+                {% else %}
+                <div class="owned-volume-list owned-volume-list--empty" data-folder-id="{% if folder.folder_id %}{{ folder.folder_id }}{% endif %}" data-series-reorder-url="{% url 'dashboard:reorder_owned_series' %}">
+                    <div class="folder-empty">이 폴더에 배정된 시리즈가 없습니다.<br><small>시리즈를 이곳으로 끌어오면 폴더에 추가됩니다.</small></div>
+                </div>
+                {% endif %}
+            </details>
+            {% endfor %}
+        </div>
+        <p class="interest-note">관심상품은 책 목록에서 하트를 누른 뒤 관심상품 대시보드에서 따로 관리할 수 있어요.</p>
+        {% else %}
+        <div class="collection-empty">
+            <span>★</span>
+            <h3>아직 보유 목록이 비어 있어요.</h3>
+            <p>오늘의 대시보드나 랭킹 탐색에서 책 옆의 별을 눌러 추가해 보세요.</p>
+        </div>
+        {% endif %}
+    </section>
+
+    <aside class="collection-tools">
+        <section class="panel folder-panel">
+            <div class="panel-heading panel-heading--compact">
+                <div>
+                    <p class="section-kicker">MY FOLDERS</p>
+                    <h2>작품 폴더 만들기</h2>
+                </div>
+                <span class="tool-icon">＋</span>
+            </div>
+            <p class="tool-description">주술회전 본편·가이드북처럼 관련 시리즈를 한곳에 묶어 보세요.</p>
+            <form class="folder-create-form" method="post" action="{% url 'dashboard:add_owned_folder' %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <label class="sr-only" for="folder-name">새 폴더 이름</label>
+                <input id="folder-name" type="text" name="folder_name" maxlength="100" placeholder="예: 주술회전">
+                <button type="submit">폴더 생성</button>
+            </form>
+            {% if owned_folders %}
+            <div class="folder-manage-list">
+                {% for folder in owned_folders %}
+                <div class="folder-manage-row">
+                    <form class="folder-rename-form" method="post" action="{% url 'dashboard:rename_owned_folder' folder.folder_id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <label class="sr-only" for="folder-rename-{{ folder.folder_id }}">{{ folder.folder_name }} 이름 변경</label>
+                        <input id="folder-rename-{{ folder.folder_id }}" type="text" name="folder_name" value="{{ folder.folder_name }}" maxlength="100">
+                        <button type="submit" title="폴더 이름 저장">저장</button>
+                    </form>
+                    <form method="post" action="{% url 'dashboard:delete_owned_folder' folder.folder_id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button class="text-button text-button--danger" type="submit" title="폴더 삭제">삭제</button>
+                    </form>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </section>
+
+        <section class="panel add-panel">
+            <div class="panel-heading panel-heading--compact">
+                <div>
+                    <p class="section-kicker">ADD TO MY SHELF</p>
+                    <h2>보유 목록에 추가</h2>
+                </div>
+                <span class="tool-icon">★</span>
+            </div>
+            <p class="tool-description">현재 수집된 랭킹 데이터에서 시리즈를 찾아 보유 권수와 함께 추가하세요.</p>
+            <form class="collection-search-form" method="get">
+                <div class="search-input-wrap">
+                    <span>⌕</span>
+                    <input type="search" name="keyword" value="{{ series_keyword }}" placeholder="시리즈명 입력">
+                </div>
+                <button class="primary-button" type="submit"><span>검색</span><b>→</b></button>
+            </form>
+
+            {% if series_keyword %}
+            <div class="series-search-results">
+                <div class="search-result-heading"><span>검색 결과</span><b>{{ series_results|length }}</b></div>
+                {% for series in series_results %}
+                <div class="series-search-row">
+                    <div>
+                        <strong>{{ series.series_name }}</strong>
+                        <span>{% if series.latest_volume_no %}최신 {{ series.latest_volume_no }}권{% else %}권수 미확인{% endif %} · {{ series.known_volume_count }}개 데이터</span>
+                    </div>
+                    {% if series.is_owned %}
+                    <span class="added-state">보유 중</span>
+                    {% else %}
+                    <form class="series-add-form" method="post" action="{% url 'dashboard:add_owned_series' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="series_id" value="{{ series.series_id }}">
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <label class="sr-only" for="owned-search-volume-{{ series.series_id }}">{{ series.series_name }} 보유 권수</label>
+                        <input type="number" id="owned-search-volume-{{ series.series_id }}" name="owned_volume_no" value="1" min="1" aria-label="{{ series.series_name }} 보유 권수">
+                        <span>권</span>
+                        <label class="sr-only" for="owned-search-folder-{{ series.series_id }}">{{ series.series_name }} 작품 폴더</label>
+                        <select class="series-add-folder" id="owned-search-folder-{{ series.series_id }}" name="folder_id">
+                            <option value="">미분류</option>
+                            {% for folder_option in owned_folders %}
+                            <option value="{{ folder_option.folder_id }}">{{ folder_option.folder_name }}</option>
+                            {% endfor %}
+                        </select>
+                        <button class="add-button" type="submit">+ 보유 추가</button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% empty %}
+                <div class="search-empty">일치하는 시리즈가 없습니다.</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </section>
+
+        <section class="direct-add-card">
+            <div class="direct-add-heading">
+                <span class="direct-add-icon">↗</span>
+                <div><p class="section-kicker">OUTSIDE THE RANKING?</p><h2>순위 밖 작품도 추가</h2></div>
+            </div>
+            <p>알라딘 상품 URL, ISBN 또는 상품번호를 넣으면 시리즈와 최신 권수를 찾아 보유 목록에 등록해요.</p>
+            <form class="direct-add-form" method="post" action="{% url 'dashboard:add_owned_series_external' %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <input type="text" name="aladin_query" placeholder="ISBN / 상품번호 / 알라딘 URL">
+                <div class="direct-add-volume">
+                    <label for="owned-external-volume">내 보유 권수</label>
+                    <input id="owned-external-volume" type="number" name="owned_volume_no" value="1" min="1">
+                    <span>권</span>
+                </div>
+                <label class="sr-only" for="owned-external-folder">작품 폴더</label>
+                <select id="owned-external-folder" name="folder_id">
+                    <option value="">미분류</option>
+                    {% for folder_option in owned_folders %}
+                    <option value="{{ folder_option.folder_id }}">{{ folder_option.folder_name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit">보유 목록에 추가 <b>→</b></button>
+            </form>
+            <small>관심만 먼저 저장하려면 관심상품 대시보드를 이용하세요.</small>
+        </section>
+
+        <section class="interest-link-card">
+            <span class="direct-add-icon">♡</span>
+            <div>
+                <p class="section-kicker">INTEREST ITEMS</p>
+                <h2>관심상품은 따로 관리하세요.</h2>
+                <a href="{% url 'dashboard:interest_series' %}">관심상품 대시보드 열기 <b>↗</b></a>
+            </div>
+        </section>
+    </aside>
+</div>
+{% endblock %}

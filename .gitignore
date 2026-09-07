@@ -1,0 +1,11 @@
+.env
+__pycache__/
+*.py[cod]
+aladin_django/.venv/
+raw/
+logs/
+*.log
+backup/
+raw/
+logs/
+*.log

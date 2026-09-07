@@ -1,0 +1,181 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}도서 검색{% endblock %}
+{% block page_kicker %}RANKING EXPLORER{% endblock %}
+
+{% block content %}
+<section class="page-heading page-heading--search">
+    <div>
+        <p class="eyebrow">RANKING EXPLORER <span></span> SEARCH &amp; SORT</p>
+        <h1>원하는 기준으로<br><em>랭킹을 다시 읽어보세요.</em></h1>
+        <p class="heading-description">수집일, 컬럼, 키워드, 정렬 기준을 조합해<br class="desktop-only"> 필요한 만화 데이터를 빠르게 찾아보세요.</p>
+    </div>
+    <div class="explorer-badge">
+        <span class="explorer-badge-icon">⌕</span>
+        <div><strong>DATA EXPLORER</strong><span>전체 컬럼 검색 지원</span></div>
+    </div>
+</section>
+
+<section class="search-panel panel">
+    <div class="panel-heading panel-heading--search">
+        <div>
+            <p class="section-kicker">FILTER WORKSPACE</p>
+            <h2>탐색 조건</h2>
+        </div>
+        <span class="filter-hint">필터를 조합해 보세요 <b>✦</b></span>
+    </div>
+
+    <form class="filter-form" method="get">
+        <div class="filter-field filter-field--wide">
+            <label for="snapshot">수집 스냅샷</label>
+            <div class="select-wrap">
+                <select id="snapshot" name="snapshot">
+                    {% for snapshot in snapshot_times %}
+                    <option value="{{ snapshot|date:'c' }}" {% if snapshot == selected_snapshot %}selected{% endif %}>
+                        {{ snapshot|date:"Y-m-d H:i" }}
+                    </option>
+                    {% empty %}
+                    <option value="">수집 데이터 없음</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div class="filter-field">
+            <label for="field">검색 컬럼</label>
+            <div class="select-wrap">
+                <select id="field" name="field">
+                    <option value="all" {% if search_field == "all" %}selected{% endif %}>전체 컬럼</option>
+                    <option value="item_id" {% if search_field == "item_id" %}selected{% endif %}>도서 ID</option>
+                    <option value="title" {% if search_field == "title" %}selected{% endif %}>도서 제목</option>
+                    <option value="series_name" {% if search_field == "series_name" %}selected{% endif %}>시리즈명</option>
+                    <option value="vol_no" {% if search_field == "vol_no" %}selected{% endif %}>권수</option>
+                    <option value="edition_type" {% if search_field == "edition_type" %}selected{% endif %}>판본</option>
+                    <option value="special_benefits" {% if search_field == "special_benefits" %}selected{% endif %}>특전</option>
+                    <option value="author" {% if search_field == "author" %}selected{% endif %}>저자</option>
+                    <option value="publisher" {% if search_field == "publisher" %}selected{% endif %}>출판사</option>
+                    <option value="release_date" {% if search_field == "release_date" %}selected{% endif %}>발매일</option>
+                    <option value="price" {% if search_field == "price" %}selected{% endif %}>가격</option>
+                    <option value="rating" {% if search_field == "rating" %}selected{% endif %}>평점</option>
+                    <option value="sales_point" {% if search_field == "sales_point" %}selected{% endif %}>판매지수</option>
+                    <option value="rank" {% if search_field == "rank" %}selected{% endif %}>순위</option>
+                </select>
+            </div>
+        </div>
+        <div class="filter-field filter-field--keyword">
+            <label for="keyword">키워드</label>
+            <div class="search-input-wrap">
+                <span>⌕</span>
+                <input id="keyword" type="text" name="keyword" value="{{ keyword }}" placeholder="제목, 저자, 시리즈명 검색">
+            </div>
+        </div>
+        <div class="filter-field">
+            <label for="sort">정렬 기준</label>
+            <div class="select-wrap">
+                <select id="sort" name="sort">
+                    <option value="rank" {% if sort_by == "rank" %}selected{% endif %}>순위</option>
+                    <option value="rating" {% if sort_by == "rating" %}selected{% endif %}>평점</option>
+                    <option value="sales_point" {% if sort_by == "sales_point" %}selected{% endif %}>판매지수</option>
+                </select>
+            </div>
+        </div>
+        <div class="filter-field filter-field--direction">
+            <label for="direction">정렬 방향</label>
+            <div class="select-wrap">
+                <select id="direction" name="direction">
+                    <option value="asc" {% if direction == "asc" %}selected{% endif %}>오름차순</option>
+                    <option value="desc" {% if direction == "desc" %}selected{% endif %}>내림차순</option>
+                </select>
+            </div>
+        </div>
+        <button class="primary-button" type="submit"><span>검색 실행</span><b>→</b></button>
+    </form>
+</section>
+
+{% if page_obj is not None %}
+<section class="panel results-panel">
+    <div class="panel-heading results-heading">
+        <div>
+            <p class="section-kicker">QUERY RESULTS</p>
+            <h2>검색 결과 <span class="result-count">{{ page_obj.paginator.count }}</span></h2>
+        </div>
+        <div class="result-meta">
+            <span>{{ selected_snapshot|date:"Y-m-d H:i" }} 스냅샷</span>
+            <span class="result-divider"></span>
+            <span>페이지 {{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+        </div>
+    </div>
+
+    <div class="table-wrap">
+        <table class="data-table search-table">
+            <thead>
+                <tr>
+                    <th>RANK</th>
+                    <th>TITLE / EDITION</th>
+                    <th>SAVE</th>
+                    <th>SERIES</th>
+                    <th>CREATOR</th>
+                    <th>PUBLISHER</th>
+                    <th>RELEASE DATE</th>
+                    <th class="align-right">PRICE</th>
+                    <th class="align-right">RATING</th>
+                    <th class="align-right">SALES POINT</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for snapshot in page_obj %}
+                <tr>
+                    <td data-label="순위"><span class="rank-badge">{{ snapshot.rank_no|stringformat:"02d" }}</span></td>
+                    <td data-label="제목">
+                        <div class="title-cell title-cell--search">
+                            <strong>{{ snapshot.book.title }}</strong>
+                            {% if snapshot.book.edition_type %}<span>{{ snapshot.book.edition_type }}</span>{% endif %}
+                            {% if snapshot.book.special_benefits %}<small>{{ snapshot.book.special_benefits|truncatechars:42 }}</small>{% endif %}
+                        </div>
+                    </td>
+                    <td data-label="목록">
+                        <div class="collection-actions">
+                            <form method="post" action="{% url 'dashboard:add_book_to_owned' snapshot.book.item_id %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <button class="collection-button collection-button--owned {% if snapshot.is_owned %}is-active{% endif %}" type="submit" title="보유 목록에 추가" aria-label="{{ snapshot.book.title }} 보유 목록에 추가">{% if snapshot.is_owned %}★{% else %}☆{% endif %}</button>
+                            </form>
+                            <form method="post" action="{% url 'dashboard:add_book_to_interest' snapshot.book.item_id %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                <button class="collection-button collection-button--interest {% if snapshot.is_interested %}is-active{% endif %}" type="submit" title="관심 항목에 추가" aria-label="{{ snapshot.book.title }} 관심 항목에 추가">{% if snapshot.is_interested %}♥{% else %}♡{% endif %}</button>
+                            </form>
+                        </div>
+                    </td>
+                    <td data-label="시리즈"><span class="series-text">{{ snapshot.book.series.series_name|default:"단독 타이틀" }}</span>{% if snapshot.latest_series_volume_no %}<small class="volume-text">{{ snapshot.latest_series_volume_no }}권까지 발매</small>{% elif snapshot.book.vol_no %}<small class="volume-text">{{ snapshot.book.vol_no }}권</small>{% endif %}</td>
+                    <td data-label="저자">{{ snapshot.book.author|default:"-" }}</td>
+                    <td data-label="출판사">{{ snapshot.book.publisher|default:"-" }}</td>
+                    <td data-label="발매일">{{ snapshot.release_date_display|default:"-" }}</td>
+                    <td class="align-right" data-label="가격">{{ snapshot.price|default:"-" }}</td>
+                    <td class="align-right" data-label="평점"><span class="rating-value"><i>★</i> {{ snapshot.rating|default:"-" }}</span></td>
+                    <td class="align-right" data-label="판매지수"><strong class="sales-value">{{ snapshot.sales_point|default:"-" }}</strong></td>
+                </tr>
+                {% empty %}
+                <tr><td class="empty-cell" colspan="10">검색 결과가 없습니다. 다른 조건으로 다시 시도해 보세요.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if page_obj.paginator.count %}
+    <div class="pagination">
+        {% if page_obj.has_previous %}
+        <a class="page-button" href="?snapshot={{ selected_snapshot|date:'c'|urlencode }}&field={{ search_field|urlencode }}&keyword={{ keyword|urlencode }}&sort={{ sort_by|urlencode }}&direction={{ direction|urlencode }}&page={{ page_obj.previous_page_number }}">← 이전</a>
+        {% else %}
+        <span class="page-button is-disabled">← 이전</span>
+        {% endif %}
+        <span class="page-number"><b>{{ page_obj.number|stringformat:"02d" }}</b> <i>/</i> {{ page_obj.paginator.num_pages|stringformat:"02d" }}</span>
+        {% if page_obj.has_next %}
+        <a class="page-button" href="?snapshot={{ selected_snapshot|date:'c'|urlencode }}&field={{ search_field|urlencode }}&keyword={{ keyword|urlencode }}&sort={{ sort_by|urlencode }}&direction={{ direction|urlencode }}&page={{ page_obj.next_page_number }}">다음 →</a>
+        {% else %}
+        <span class="page-button is-disabled">다음 →</span>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+{% endif %}
+{% endblock %}

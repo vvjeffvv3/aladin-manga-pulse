@@ -1,0 +1,90 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#fffaf4">
+    <title>{% block title %}알라딘 만화 대시보드{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'dashboard/style.css' %}">
+    <script src="{% static 'dashboard/app.js' %}" defer></script>
+</head>
+<body class="app-body">
+    <a class="skip-link" href="#main-content">본문으로 바로가기</a>
+
+    <div class="app-layout">
+        <aside class="sidebar">
+            <a class="brand" href="{% url 'dashboard:home' %}">
+                <span class="brand-mark">A</span>
+                <span class="brand-copy">
+                    <span class="brand-kicker">ALADIN DATA LAB</span>
+                    <strong>MANGA<span>PULSE</span></strong>
+                </span>
+            </a>
+
+            <div class="sidebar-caption">RANKING INTELLIGENCE</div>
+
+            <nav class="side-nav" aria-label="주 메뉴">
+                <a class="nav-link {% if request.resolver_match.url_name == 'home' %}is-active{% endif %}" href="{% url 'dashboard:home' %}">
+                    <span class="nav-icon">⌂</span>
+                    <span>오늘의 대시보드</span>
+                    <span class="nav-arrow">↗</span>
+                </a>
+                <a class="nav-link {% if request.resolver_match.url_name == 'search' %}is-active{% endif %}" href="{% url 'dashboard:search' %}">
+                    <span class="nav-icon">⌕</span>
+                    <span>랭킹 탐색</span>
+                    <span class="nav-arrow">↗</span>
+                </a>
+                <a class="nav-link {% if request.resolver_match.url_name == 'interest_series' %}is-active{% endif %}" href="{% url 'dashboard:interest_series' %}">
+                    <span class="nav-icon">♡</span>
+                    <span>관심상품</span>
+                    <span class="nav-arrow">↗</span>
+                </a>
+                <a class="nav-link {% if request.resolver_match.url_name == 'owned_series' %}is-active{% endif %}" href="{% url 'dashboard:owned_series' %}">
+                    <span class="nav-icon">▤</span>
+                    <span>마이페이지</span>
+                    <span class="nav-arrow">↗</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-insight">
+                <span class="insight-orb"></span>
+                <div>
+                    <span class="insight-label">QUICK INSIGHT</span>
+                    <strong>매일의 순위 변화를<br>한눈에 확인하세요.</strong>
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <span class="connection-dot"></span>
+                <span>MYSQL CONNECTED</span>
+                <span class="sidebar-version">v1.0</span>
+            </div>
+        </aside>
+
+        <div class="page-shell">
+            <header class="topbar">
+                <div class="breadcrumb">
+                    <span>ALADIN DATA LAB</span>
+                    <span class="breadcrumb-slash">/</span>
+                    <strong>{% block page_kicker %}MANGA OVERVIEW{% endblock %}</strong>
+                </div>
+                <div class="topbar-meta">
+                    <span class="live-pill"><i></i> LIVE TRACKING</span>
+                    <span class="topbar-date">DAILY SNAPSHOT</span>
+                </div>
+            </header>
+
+            <main id="main-content" class="main-content">
+                {% block content %}{% endblock %}
+            </main>
+
+            <footer class="page-footer">
+                <span>ALADIN MANGA PULSE <b>·</b> RANKING OBSERVATORY</span>
+                <span>HTML COLLECTOR <b>·</b> MYSQL WAREHOUSE</span>
+            </footer>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,137 @@
+{% extends "dashboard/base.html" %}
+
+{% block title %}관심상품{% endblock %}
+{% block page_kicker %}INTEREST ITEMS{% endblock %}
+
+{% block content %}
+{% if messages %}
+<div class="message-stack" aria-live="polite">
+    {% for message in messages %}
+    <div class="message message--{{ message.tags|default:'info' }}">{{ message }}</div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<section class="page-heading page-heading--collection">
+    <div>
+        <p class="eyebrow">INTEREST ITEMS <span></span> WATCHLIST</p>
+        <h1>관심상품을<br><em>가볍게 모아보세요.</em></h1>
+        <p class="heading-description">하트를 누른 시리즈와 아직 읽지 않은 작품을 모아두고,<br class="desktop-only"> 새로운 권수가 나왔는지 간단하게 확인할 수 있어요.</p>
+    </div>
+    <div class="collection-summary">
+        <span>INTEREST ITEMS</span>
+        <strong>{{ interest_series|length }}</strong>
+        <small>관심 중인 시리즈</small>
+    </div>
+</section>
+
+<div class="collection-layout">
+    <section class="panel collection-panel">
+        <div class="panel-heading">
+            <div>
+                <p class="section-kicker">WATCHLIST</p>
+                <h2>관심상품</h2>
+            </div>
+            <span class="collection-live"><i></i> TRACKING</span>
+        </div>
+
+        {% if interest_series %}
+        <div class="compact-interest-list interest-dashboard-list">
+            {% for item in interest_series %}
+            <article class="compact-interest-row">
+                <div class="compact-interest-copy">
+                    <strong>{{ item.series.series_name }}</strong>
+                    <span>{% if item.latest_volume_no %}최신 {{ item.latest_volume_no }}권{% else %}권수 미확인{% endif %} · 관심 중</span>
+                </div>
+                <div class="compact-interest-actions">
+                    <form method="post" action="{% url 'dashboard:move_interest_to_owned' item.owned_series_id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button class="interest-move-button" type="submit" title="보유 목록으로 이동">보유 목록으로 <b>→</b></button>
+                    </form>
+                    <form method="post" action="{% url 'dashboard:refresh_owned_series' item.owned_series_id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button class="text-button" type="submit" title="최신 권수 갱신">↻</button>
+                    </form>
+                    <form method="post" action="{% url 'dashboard:remove_owned_series' item.owned_series_id %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button class="text-button text-button--danger" type="submit" title="관심상품에서 삭제">×</button>
+                    </form>
+                </div>
+            </article>
+            {% endfor %}
+        </div>
+        <p class="interest-note">관심상품을 구매했다면 ‘보유 목록으로’를 누른 뒤 마이페이지에서 실제 보유 권수를 체크하세요.</p>
+        {% else %}
+        <div class="collection-empty">
+            <span>♡</span>
+            <h3>아직 관심상품이 없어요.</h3>
+            <p>책 목록에서 하트를 누르거나 오른쪽 검색창에서 작품을 추가해 보세요.</p>
+        </div>
+        {% endif %}
+    </section>
+
+    <aside class="collection-tools">
+        <section class="panel add-panel">
+            <div class="panel-heading panel-heading--compact">
+                <div>
+                    <p class="section-kicker">ADD TO WATCHLIST</p>
+                    <h2>관심상품 추가</h2>
+                </div>
+                <span class="tool-icon">♡</span>
+            </div>
+            <p class="tool-description">현재 수집된 랭킹 데이터에서 시리즈를 찾아요.</p>
+            <form class="collection-search-form" method="get">
+                <div class="search-input-wrap">
+                    <span>⌕</span>
+                    <input type="search" name="keyword" value="{{ series_keyword }}" placeholder="시리즈명 입력">
+                </div>
+                <button class="primary-button" type="submit"><span>검색</span><b>→</b></button>
+            </form>
+
+            {% if series_keyword %}
+            <div class="series-search-results">
+                <div class="search-result-heading"><span>검색 결과</span><b>{{ series_results|length }}</b></div>
+                {% for series in series_results %}
+                <div class="series-search-row">
+                    <div>
+                        <strong>{{ series.series_name }}</strong>
+                        <span>{% if series.latest_volume_no %}최신 {{ series.latest_volume_no }}권{% else %}권수 미확인{% endif %} · {{ series.known_volume_count }}개 데이터</span>
+                    </div>
+                    {% if series.is_interested %}
+                    <span class="added-state">{% if series.is_owned %}보유 중{% else %}관심 등록됨{% endif %}</span>
+                    {% else %}
+                    <form method="post" action="{% url 'dashboard:add_interest_series' %}">
+                        {% csrf_token %}
+                        <input type="hidden" name="series_id" value="{{ series.series_id }}">
+                        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                        <button class="add-button" type="submit">+ 관심 추가</button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% empty %}
+                <div class="search-empty">일치하는 시리즈가 없습니다.</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </section>
+
+        <section class="direct-add-card">
+            <div class="direct-add-heading">
+                <span class="direct-add-icon">↗</span>
+                <div><p class="section-kicker">OUTSIDE THE RANKING?</p><h2>순위 밖 작품도 추가</h2></div>
+            </div>
+            <p>알라딘 상품 URL, ISBN 또는 상품번호를 넣으면 시리즈와 최신 권수를 찾아 관심상품에 등록해요.</p>
+            <form class="direct-add-form" method="post" action="{% url 'dashboard:add_interest_series_external' %}">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <input type="text" name="aladin_query" placeholder="ISBN / 상품번호 / 알라딘 URL">
+                <button type="submit">알라딘에서 찾기 <b>→</b></button>
+            </form>
+            <small>보유 목록에 추가하려면 마이페이지에서 시리즈와 보유 권수를 등록하세요.</small>
+        </section>
+    </aside>
+</div>
+{% endblock %}
