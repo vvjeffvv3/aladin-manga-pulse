@@ -9,10 +9,10 @@
 | 데이터 수집 방식 | 알라딘 베스트셀러 HTML 페이지 크롤링 |
 | 주요 기술 | Python, Requests, BeautifulSoup, Django, MySQL |
 | 데이터 처리 단계 | HTML 수집 → Silver 누적 → Gold 변환 → MySQL 적재 → Django 조회 |
-| 작성 기준일 | 2026-09-07 |
+| 작성 기준일 | 2026-09-08 |
 | 현재 상태 | 핵심 파이프라인·대시보드 구현 완료, 날짜별 최신 1건 보장 로직과 작업 스케줄러 성공 실행 1회 검증 완료 |
 
-이 문서는 지금까지 구현한 개인 프로젝트의 목적, 데이터 구조, 처리 로직, 화면 기능, 운영 방식과 한계를 정리한 결과 보고서다. 실행 명령과 장애 대응 절차는 별도 문서인 `EXECUTION_GUIDE.md`에 정리했다.
+이 문서는 지금까지 구현한 개인 프로젝트의 목적, 데이터 구조, 처리 로직, 화면 기능, 운영 방식과 한계를 정리한 결과 보고서다. 실행 명령과 장애 대응 절차는 [EXECUTION_GUIDE.md](./EXECUTION_GUIDE.md)에, 테스트 실행·구조·작성 방법은 [TESTING_GUIDE.md](./TESTING_GUIDE.md)에 정리했다.
 
 ## 2. 프로젝트 배경과 목표
 
@@ -83,6 +83,10 @@ Django Repository → Service → Presentation → Template
 
 ```text
 aladin_project/
+├─ README.md                       # 프로젝트 보고서
+├─ EXECUTION_GUIDE.md              # 실행·운영 설명서
+├─ TESTING_GUIDE.md                # 테스트 실행·작성 가이드
+├─ .gitignore                      # 비밀번호·실행 산출물 제외 규칙
 ├─ aladin_manga_scraper.py       # 알라딘 베스트셀러 HTML 수집
 ├─ release_date_enricher.py      # 상세 페이지 발매일 보강용(선택)
 ├─ gold_transform.py             # Silver → Gold 변환
@@ -100,6 +104,12 @@ aladin_project/
 ├─ gold/                           # Gold 결과 CSV
 │  ├─ manga_trend.csv
 │  └─ popular_series.csv
+├─ tests/                          # 크롤러·Gold·Loader·배치 테스트
+│  ├─ test_scraper.py
+│  ├─ test_daily_snapshot.py
+│  ├─ test_gold_transform.py
+│  ├─ test_mysql_loader.py
+│  └─ test_daily_pipeline.py
 ├─ .env                            # 로컬 MySQL 설정·비밀번호(커밋 금지)
 ├─ .env.example                    # 설정 형식 예시
 ├─ logs/                           # 배치 실행 로그
@@ -119,11 +129,12 @@ aladin_project/
          ├─ presentation/
          ├─ repository/
          ├─ service/
+         ├─ tests/                 # Django Service·View·Repository 테스트
          ├─ templates/dashboard/
          └─ static/dashboard/
 ```
 
-`__pycache__`와 가상환경 내부 파일은 실행 산출물 또는 의존성 파일이므로 프로젝트 기능 설명에서는 제외했다.
+`__pycache__`와 가상환경 내부 파일은 실행 산출물 또는 의존성 파일이므로 프로젝트 기능 설명에서는 제외했다. `history/*_before_daily_dedupe.csv` 형식의 정리 전 history 백업도 로컬 복구용 파일이라 Git에 포함하지 않는다.
 
 ## 4. HTML 크롤링 설계
 
@@ -414,7 +425,7 @@ MySQL
 - 전체 컬럼 검색
 - 도서 ID, 제목, 시리즈명, 권수, 판본, 특전, 저자, 출판사, 발매일 검색
 - 가격, 평점, 판매지수, 순위 검색
-- 순위·평점·판매지수 오름차순/내림차순 정렬
+- 순위·가격·평점·판매지수 오름차순/내림차순 정렬
 - 페이지당 기본 50개, 최대 100개
 - 시리즈명 아래에 해당 시리즈의 최신 관측 권수 표시
 - 검색 결과가 없을 때 0건과 안내 문구 표시
@@ -464,6 +475,16 @@ MySQL
 - 외부 조회 실패 시 사용자 메시지 표시
 
 이 기능은 현재 시리즈 추가에 사용된다. 아직 알라딘 전체 도서 카탈로그를 주기적으로 수집해 검색하는 기능은 구현하지 않았다.
+
+### 8.7 테스트 구조
+
+테스트는 데이터 처리 파이프라인과 Django 애플리케이션 계층을 나누어 관리한다.
+
+- `tests/`: 크롤러·날짜 중복 제거·Gold 변환·Loader·일일 배치 테스트
+- `dashboard/tests/`: Django Service·View·Repository 테스트
+- 현재 루트 테스트 19개, Django 테스트 44개로 총 63개
+
+상세 실행 명령, 테스트 DB 정책, 새 기능에 테스트를 추가하는 방법은 [TESTING_GUIDE.md](./TESTING_GUIDE.md)를 참고한다.
 
 ## 9. 일일 자동 실행
 
@@ -568,7 +589,7 @@ API가 아닌 HTML 선택자에 의존하므로 다음 변화에 영향을 받�
 5. 알라딘 HTML이 차단 페이지인지 판별하는 검증 로직 추가
 6. 순위 밖 도서를 검색할 수 있는 별도 카탈로그 수집 기능 추가
 7. `books`와 스냅샷을 분리한 전체 도서 검색 화면 설계
-8. 현재 Django 모델에 맞는 테스트 데이터와 자동화 테스트 확장
+8. Django·Loader·일일 배치 테스트 구현 완료, 이후 CI 자동 실행과 실환경 스모크 테스트 확장
 9. 사용자 인증을 추가해 여러 사용자의 보유목록을 분리
 10. 운영 배포 시 `DEBUG=False`, secret key·DB 비밀번호·ALLOWED_HOSTS 분리
 

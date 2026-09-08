@@ -244,6 +244,14 @@ python .\mysql_loader.py
 
 Gold 변환을 다시 한 뒤에는 반드시 MySQL 적재도 다시 실행해야 Django에서 새 결과를 볼 수 있다.
 
+### 5.3 테스트 안내
+
+크롤러·Gold·Loader·배치 테스트와 Django Service·View·Repository 테스트의 상세 실행 방법, 테스트 구조, 새 기능에 테스트를 추가하는 방법은 별도 문서에 정리했다.
+
+- [TESTING_GUIDE.md](./TESTING_GUIDE.md)
+
+전체 테스트는 운영 알라딘 페이지와 운영 데이터를 사용하지 않는다. Django Repository 테스트만 별도의 테스트 DB를 사용하며, 자세한 데이터베이스 정책은 `TESTING_GUIDE.md`에서 확인한다.
+
 ## 6. 배치 파일을 이용한 전체 실행
 
 프로젝트 루트의 `run_daily_pipeline.bat`은 다음 세 작업을 순서대로 실행한다.
@@ -627,7 +635,7 @@ python .\gold_transform.py
 python .\mysql_loader.py
 ```
 
-`normalize_history.py`는 기존 history CSV를 백업한 뒤, 같은 상품·같은 KST 날짜에서 `collected_at`이 가장 최신인 행만 남긴다. 이후 Gold와 MySQL을 다시 생성·적재해야 대시보드에도 정리 결과가 반영된다. MySQL 적재기는 기존 테이블에 날짜 키가 없는 경우에도 `collected_date`를 추가하고 오래된 중복을 제거하는 마이그레이션을 수행한다.
+`normalize_history.py`는 자동 백업을 만들지 않는다. 실행 전 원본을 보존해야 한다면 `Copy-Item` 등으로 별도 복사한 뒤 실행한다. 이 도구는 임시 파일에 정리 결과를 작성한 다음 기존 history CSV를 교체하고, 같은 상품·같은 KST 날짜에서 `collected_at`이 가장 최신인 행만 남긴다. 이후 Gold와 MySQL을 다시 생성·적재해야 대시보드에도 정리 결과가 반영된다. MySQL 적재기는 기존 테이블에 날짜 키가 없는 경우에도 `collected_date`를 추가하고 오래된 중복을 제거하는 마이그레이션을 수행한다.
 
 ## 14. GitHub 업로드 전 점검 및 업로드
 
@@ -639,8 +647,9 @@ GitHub는 MySQL 데이터를 백업하지 않는다. 업로드 전에 순위 통
 
 ```powershell
 New-Item -ItemType Directory -Force .\backup | Out-Null
-& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqldump.exe" -h 127.0.0.1 -P 3306 -u root -p --databases aladin_manga --result-file=".\backup\aladin_manga_2026-09-07.sql"
-Copy-Item .\history\aladin_manga_history.csv .\backup\aladin_manga_history_2026-09-07.csv
+$backupDate = Get-Date -Format "yyyy-MM-dd"
+& "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqldump.exe" -h 127.0.0.1 -P 3306 -u root -p --databases aladin_manga --result-file=".\backup\aladin_manga_$backupDate.sql"
+Copy-Item .\history\aladin_manga_history.csv ".\backup\aladin_manga_history_$backupDate.csv"
 ```
 
 `mysqldump`가 비밀번호를 물어보면 입력한다. 백업 파일에는 보유목록과 통계가 포함될 수 있으므로 GitHub에 올리지 않는다. 프로젝트의 `.gitignore`에는 이미 다음 제외 항목이 포함되어 있다.
@@ -650,6 +659,7 @@ raw/
 logs/
 *.log
 backup/
+history/*_before_daily_dedupe.csv
 ```
 
 ### 14.2 업로드 직전 확인
@@ -661,15 +671,15 @@ cd "C:\Users\Playdata\Documents\ChatGPT\개인\aladin_project"
 git rev-parse --show-toplevel
 ```
 
-결과가 `aladin_project` 경로인지 확인한다. GitHub 저장소의 첫 화면에 보고서를 표시하려면 VS Code 탐색기에서 `README.md.md`를 `README.md`로 변경하는 것을 권장한다.
+결과가 `aladin_project` 경로인지 확인한다. GitHub 저장소의 첫 화면에는 프로젝트 루트의 `README.md`가 자동으로 표시된다.
 
 업로드하지 않을 파일이 제외되는지 확인한다.
 
 ```powershell
-git check-ignore -v .env .\aladin_django\.venv .\raw .\logs .\backup
+git check-ignore -v .env .\aladin_django\.venv .\raw .\logs .\backup .\history\aladin_manga_history_before_daily_dedupe.csv
 ```
 
-목록에 실제 비밀번호, `.env`, `.venv`, `raw`, `logs`, `backup` 파일이 포함되지 않는지 반드시 확인한다. `.env.example`, `history`, `gold`, SQL 스키마와 소스 코드는 업로드 대상이다.
+목록에 실제 비밀번호, `.env`, `.venv`, `raw`, `logs`, `backup` 파일이 포함되지 않는지 반드시 확인한다. `.env.example`, `history/aladin_manga_history.csv`, `gold`, SQL 스키마와 소스 코드는 업로드 대상이며, `history/*_before_daily_dedupe.csv` 같은 정리 전 백업은 제외 대상이다.
 
 ### 14.3 GitHub 저장소 생성과 첫 업로드
 
@@ -682,11 +692,11 @@ git add .
 git status --short
 git diff --cached --name-only
 git commit -m "Initial commit: Aladin manga dashboard"
-git remote add origin https://github.com/사용자명/aladin-manga-pulse.git
+git remote add origin https://github.com/vvjeffvv3/aladin-manga-pulse.git
 git push -u origin main
 ```
 
-`git diff --cached --name-only` 결과에 `.env`, `.venv`, `raw`, `logs`, `backup`이 보이면 커밋을 중단하고 `.gitignore`를 먼저 수정한다. GitHub HTTPS 인증은 GitHub 로그인 또는 Personal Access Token을 사용한다.
+`git diff --cached --name-only` 결과에 `.env`, `.venv`, `raw`, `logs`, `backup` 또는 정리 전 history 백업이 보이면 커밋을 중단하고 `.gitignore`를 먼저 수정한다. GitHub HTTPS 인증은 GitHub 로그인 또는 Personal Access Token을 사용한다.
 
 ## 15. 다른 컴퓨터·집에서 실행하기
 
@@ -696,7 +706,7 @@ git push -u origin main
 
 ```powershell
 cd "D:\Projects"
-git clone https://github.com/사용자명/aladin-manga-pulse.git
+git clone https://github.com/vvjeffvv3/aladin-manga-pulse.git
 cd .\aladin-manga-pulse
 ```
 
@@ -730,13 +740,16 @@ notepad .env
 기존 순위·보유목록을 이어서 사용하려면 MySQL 서비스를 먼저 실행하고 백업 SQL을 복원한다.
 
 ```powershell
-cmd /c '"C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe" -h 127.0.0.1 -P 3306 -u root -p < "C:\Backup\aladin_manga_2026-09-07.sql"'
+$backupDate = "2026-09-08" # 실제 백업 파일명의 날짜 부분으로 변경
+$backupSql = "C:\Backup\aladin_manga_$backupDate.sql"
+$mysqlExe = "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysql.exe"
+cmd /c ('"{0}" -h 127.0.0.1 -P 3306 -u root -p < "{1}"' -f $mysqlExe, $backupSql)
 ```
 
 다음 Gold 실행에서 과거 순위와 비교하려면 history CSV도 복사한다.
 
 ```powershell
-Copy-Item "C:\Backup\aladin_manga_history_2026-09-07.csv" .\history\aladin_manga_history.csv
+Copy-Item "C:\Backup\aladin_manga_history_$backupDate.csv" .\history\aladin_manga_history.csv
 ```
 
 MySQL 백업을 복원했다면 대시보드의 기존 통계는 바로 사용할 수 있다. history만 복원했거나 기존 데이터를 새로 적재하려는 경우에는 다음을 실행한다.

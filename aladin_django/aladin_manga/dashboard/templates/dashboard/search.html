@@ -73,6 +73,7 @@
             <div class="select-wrap">
                 <select id="sort" name="sort">
                     <option value="rank" {% if sort_by == "rank" %}selected{% endif %}>순위</option>
+                    <option value="price" {% if sort_by == "price" %}selected{% endif %}>가격</option>
                     <option value="rating" {% if sort_by == "rating" %}selected{% endif %}>평점</option>
                     <option value="sales_point" {% if sort_by == "sales_point" %}selected{% endif %}>판매지수</option>
                 </select>
