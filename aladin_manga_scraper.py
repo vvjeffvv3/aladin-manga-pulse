@@ -12,6 +12,7 @@
 price는 할인 가격이 표시된 경우 할인 가격을 저장합니다.
 special_benefits는 도서 제목 옆의 ss_f_g2 문구를 그대로 저장합니다.
 원본 HTML은 실행일 기준으로 raw/YYYY-MM-DD/page_001.html 형식으로 저장합니다.
+네트워크·HTTP 오류나 알라딘 오류 페이지가 반환되면 페이지별로 최대 3회 재시도합니다.
 목록 페이지에서 월까지만 제공된 발매일은 release_date_enricher.py로
 상품 상세 페이지를 확인한 뒤 일자까지 보강할 수 있습니다.
 """
@@ -55,6 +56,8 @@ FIELDS = [
 ]
 
 KST = timezone(timedelta(hours=9))
+MAX_RETRIES = 3
+RETRY_DELAYS_SECONDS = (3, 6, 12)
 
 EDITION_MARKERS = (
     "특장판",
@@ -296,6 +299,70 @@ def parse_book(title_link: Tag) -> Optional[dict[str, object]]:
     }
 
 
+class RetryablePageError(RuntimeError):
+    """일시적인 접근 오류로 다시 요청할 수 있는 페이지 오류."""
+
+
+def is_aladin_error_page(soup: BeautifulSoup) -> bool:
+    """상품 목록 대신 알라딘 오류 페이지가 반환됐는지 확인한다."""
+    if soup.select_one("#lbErrorInfo, .error2013") is not None:
+        return True
+
+    page_text = clean_space(soup.get_text(" ", strip=True))
+    return "요청하신 페이지에 오류가 존재합니다" in page_text
+
+
+def fetch_page(
+    session: requests.Session,
+    page_url: str,
+    page_number: int,
+    raw_page_path: Path,
+) -> BeautifulSoup:
+    """페이지를 요청하고 일시 오류는 최대 3회 재시도한다."""
+    last_error: Optional[Exception] = None
+
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            response = session.get(page_url, timeout=20)
+            # 실패 응답도 마지막 시도 결과를 확인할 수 있도록 보관한다.
+            raw_page_path.write_bytes(response.content)
+            response.raise_for_status()
+
+            soup = BeautifulSoup(response.content, "html.parser")
+            if is_aladin_error_page(soup):
+                raise RetryablePageError(
+                    "알라딘 오류 페이지가 반환되었습니다."
+                )
+
+            # 첫 페이지에 상품 링크가 없으면 정상적인 종료가 아니라
+            # 일시 오류 또는 접근 제한일 가능성이 높으므로 재시도한다.
+            if page_number == 1 and not soup.select("a.bo3"):
+                raise RetryablePageError(
+                    "첫 페이지에서 상품 링크를 찾지 못했습니다."
+                )
+
+            return soup
+        except (requests.RequestException, RetryablePageError) as exc:
+            last_error = exc
+            if attempt >= MAX_RETRIES:
+                break
+
+            retry_number = attempt + 1
+            wait_seconds = RETRY_DELAYS_SECONDS[attempt]
+            print(
+                f"{page_number}페이지 일시 오류 "
+                f"(재시도 {retry_number}/{MAX_RETRIES}): {exc}"
+                f" - {wait_seconds}초 후 다시 요청합니다.",
+                flush=True,
+            )
+            time.sleep(wait_seconds)
+
+    raise RuntimeError(
+        f"{page_number}페이지 요청이 최대 재시도 횟수({MAX_RETRIES}회)를 "
+        f"초과했습니다: {last_error}"
+    ) from last_error
+
+
 def crawl_all_pages(raw_dir: Path) -> list[dict[str, object]]:
     session = requests.Session()
     session.headers.update(
@@ -326,16 +393,9 @@ def crawl_all_pages(raw_dir: Path) -> list[dict[str, object]]:
                 f"{URL}&page={page_number}&cnt=1000&SortOrder=1"
             )
 
-        response = session.get(page_url, timeout=20)
-        response.raise_for_status()
-
-        # 나중에 HTML 구조나 추출 결과를 재확인할 수 있도록
-        # 실행일별·페이지별로 원본 HTML을 보관한다.
         raw_page_path = raw_date_dir / f"page_{page_number:03d}.html"
-        raw_page_path.write_bytes(response.content)
+        soup = fetch_page(session, page_url, page_number, raw_page_path)
 
-        # 원본 바이트를 넘기면 HTML의 meta charset을 BeautifulSoup이 처리한다.
-        soup = BeautifulSoup(response.content, "html.parser")
         title_links = soup.select("a.bo3")
         page_books: list[dict[str, object]] = []
 
