@@ -27,6 +27,7 @@ NUMERIC_SEARCH_FIELDS = {
 
 SORT_FIELDS = {
     "rank": "rank_no",
+    "price": "price",
     "rating": "rating",
     "sales_point": "sales_point",
 }
