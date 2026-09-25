@@ -392,6 +392,14 @@ C:\Users\Playdata\Documents\ChatGPT\개인\aladin_project
 
 `사용자가 로그온하지 않아도 실행`을 선택하면 Windows 계정 비밀번호를 요구할 수 있다. 이 경우에도 MySQL 비밀번호와 Windows 계정 비밀번호를 혼동하지 않는다.
 
+중요: Windows 작업 스케줄러는 컴퓨터가 **완전히 꺼진 상태**에서는 실행할 수 없다. `예약된 시작 시간을 놓치면 가능한 한 빨리 작업 시작`은 전원을 켠 뒤의 보정 실행 옵션이다. 절전·최대 절전 상태에서 자동 실행을 기대한다면 다음을 함께 확인한다.
+
+- 조건 탭의 `예약된 작업을 실행하기 위해 컴퓨터 깨우기`
+- 배터리 사용 시 작업 시작·중지 조건
+- `사용자가 로그온한 경우에만 실행` 여부
+
+컴퓨터를 켜지 않아도 매일 실행되는 구성이 필요하면 VPS·NAS·CI 같은 항상 켜진 실행 환경으로 옮겨야 한다.
+
 ### 7.4 테스트
 
 작업 스케줄러에서 생성한 작업을 우클릭하고 `실행`을 눌러 테스트한다. 또는 PowerShell에서 다음처럼 실행한다.
@@ -439,6 +447,27 @@ http://127.0.0.1:8000/
 | `/owned-series/` | 마이페이지·보유목록 |
 
 데이터가 새로 적재된 뒤에는 브라우저를 새로고침하면 최신 스냅샷을 조회한다. Django 개발 서버를 매번 재시작할 필요는 없다.
+
+`Error: You don't have permission to access that port.`가 나오면 대부분 `127.0.0.1:8000`에서 기존 Django 서버가 이미 실행 중인 경우다. 먼저 기존 서버가 열려 있는지 확인한다.
+
+```powershell
+netstat -ano -p tcp | Select-String ':8000'
+```
+
+기존 서버를 계속 사용할 수 있다면 `http://127.0.0.1:8000/`에 접속한다. 재시작이 필요하면 기존 서버 터미널에서 `Ctrl + C`로 종료한 뒤 다시 실행한다. 임시로 다른 포트를 쓸 수도 있다.
+
+```powershell
+..\.venv\Scripts\python.exe manage.py runserver 8001
+```
+
+수집 시각이 실제 시간보다 9시간 뒤 또는 다음 날로 표시되면 `aladin_manga/settings.py`의 시간대 설정을 확인한다. 이 프로젝트는 MySQL `DATETIME`에 KST 시각을 저장하므로 다음 설정을 사용한다.
+
+```python
+TIME_ZONE = "Asia/Seoul"
+USE_TZ = False
+```
+
+설정을 바꾼 경우 Django 서버만 재시작하면 된다. 데이터 재수집이나 MySQL 재적재는 필요하지 않다.
 
 ## 9. 장애 대응
 
@@ -659,6 +688,9 @@ raw/
 logs/
 *.log
 backup/
+aladin_manga.csv
+history/aladin_manga_history.csv
+gold/*.csv
 history/*_before_daily_dedupe.csv
 ```
 
@@ -676,27 +708,26 @@ git rev-parse --show-toplevel
 업로드하지 않을 파일이 제외되는지 확인한다.
 
 ```powershell
-git check-ignore -v .env .\aladin_django\.venv .\raw .\logs .\backup .\history\aladin_manga_history_before_daily_dedupe.csv
+git check-ignore -v .env .\aladin_django\.venv .\aladin_manga.csv .\history\aladin_manga_history.csv .\gold\manga_trend.csv .\raw .\logs .\backup
 ```
 
-목록에 실제 비밀번호, `.env`, `.venv`, `raw`, `logs`, `backup` 파일이 포함되지 않는지 반드시 확인한다. `.env.example`, `history/aladin_manga_history.csv`, `gold`, SQL 스키마와 소스 코드는 업로드 대상이며, `history/*_before_daily_dedupe.csv` 같은 정리 전 백업은 제외 대상이다.
+목록에 실제 비밀번호, `.env`, `.venv`, `raw`, `logs`, `backup` 파일이 포함되지 않는지 반드시 확인한다. `.env.example`, SQL 스키마, 테스트, 문서와 소스 코드는 업로드 대상이다. 반면 `aladin_manga.csv`, `history/aladin_manga_history.csv`, `gold/*.csv`, `raw`, `logs`, `backup`은 실행·분석 결과이므로 Git에서 제외한다. 필요한 경우 GitHub 대신 별도 백업 위치에 보관한다.
 
 ### 14.3 GitHub 저장소 생성과 첫 업로드
 
 GitHub에서 새 저장소를 만들 때는 `README`, `.gitignore`, `License`를 자동 생성하지 않는 빈 저장소로 만든다. 프로젝트 폴더에서 다음을 실행한다.
 
 ```powershell
-git init
-git branch -M main
-git add .
 git status --short
+git add .gitignore README.md EXECUTION_GUIDE.md TESTING_GUIDE.md
+git add aladin_django\aladin_manga\aladin_manga\settings.py
+git rm --cached aladin_manga.csv history/aladin_manga_history.csv gold/manga_trend.csv gold/popular_series.csv
 git diff --cached --name-only
-git commit -m "Initial commit: Aladin manga dashboard"
-git remote add origin https://github.com/vvjeffvv3/aladin-manga-pulse.git
-git push -u origin main
+git commit -m "Refresh documentation and runtime configuration"
+git push origin main
 ```
 
-`git diff --cached --name-only` 결과에 `.env`, `.venv`, `raw`, `logs`, `backup` 또는 정리 전 history 백업이 보이면 커밋을 중단하고 `.gitignore`를 먼저 수정한다. GitHub HTTPS 인증은 GitHub 로그인 또는 Personal Access Token을 사용한다.
+`git diff --cached --name-only` 결과에 `.env`, `.venv`, `aladin_manga.csv`, `history`, `gold`, `raw`, `logs`, `backup`이 보이면 커밋을 중단하고 `.gitignore`와 Git 추적 상태를 먼저 확인한다. `git rm --cached`는 로컬 파일을 지우지 않고 Git 추적만 중단한다. GitHub HTTPS 인증은 GitHub 로그인 또는 Personal Access Token을 사용한다.
 
 ## 15. 다른 컴퓨터·집에서 실행하기
 
@@ -836,4 +867,4 @@ cd "C:\Users\Playdata\Documents\ChatGPT\개인\aladin_project\aladin_django\alad
 
 ### 자동 실행
 
-Windows 작업 스케줄러에서 `run_daily_pipeline.bat`을 매일 오전 9시에 실행하도록 등록한다. 현재 등록된 작업 이름은 `Aladin Daily Pipeline`이다.
+Windows 작업 스케줄러에서 `run_daily_pipeline.bat`을 매일 오전 9시에 실행하도록 등록한다. 컴퓨터가 완전히 꺼져 있으면 실행되지 않으며, 다른 컴퓨터에서는 작업을 새로 등록해야 한다.

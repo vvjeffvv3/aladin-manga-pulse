@@ -63,7 +63,8 @@ class RepositoryIntegrationTests(TransactionTestCase):
 
     @staticmethod
     def _snapshot_time(day: int, hour: int = 9):
-        return timezone.make_aware(datetime(2026, 9, day, hour, 0))
+        # 운영 DB는 KST 기준의 timezone-naive DATETIME을 사용한다.
+        return datetime(2026, 9, day, hour, 0)
 
     @staticmethod
     def _book(
